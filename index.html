@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Redimensionador de Imagens</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#5D5CDE',
+                    }
+                }
+            },
+            darkMode: 'class'
+        }
+    </script>
+    <style>
+        .drag-area {
+            border: 2px dashed #ccc;
+            transition: all 0.3s ease;
+        }
+        .drag-area.active {
+            border-color: #5D5CDE;
+            background-color: rgba(93, 92, 222, 0.1);
+        }
+        .dark .drag-area {
+            border-color: #444;
+        }
+        .dark .drag-area.active {
+            border-color: #5D5CDE;
+            background-color: rgba(93, 92, 222, 0.2);
+        }
+        .preview-container {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+            gap: 16px;
+        }
+        .preview-item {
+            position: relative;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            transition: transform 0.2s ease;
+        }
+        .preview-item:hover {
+            transform: translateY(-5px);
+        }
+        .dark .preview-item {
+            box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+        }
+        .progress-bar {
+            height: 4px;
+            width: 0%;
+            background-color: #5D5CDE;
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            transition: width 0.3s ease;
+        }
+    </style>
+</head>
+<body class="bg-white dark:bg-[#181818] text-gray-800 dark:text-gray-200 min-h-screen">
+    <div class="container mx-auto px-4 py-8 max-w-5xl">
+        <h1 class="text-3xl font-bold text-center mb-6 text-primary">Redimensionador de Imagens</h1>
+        <p class="text-center mb-4">
+            Arraste e solte suas imagens para redimensioná-las para <span class="font-semibold">314×191 pixels</span> com resolução de <span class="font-semibold">96 DPI</span> e profundidade de <span class="font-semibold">24 bits</span>
+        </p>
+        
+        <!-- Área de arrastar e soltar -->
+        <div class="drag-area flex flex-col items-center justify-center p-10 rounded-lg mb-8 cursor-pointer bg-gray-50 dark:bg-gray-900">
+            <i class="upload-icon">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-16 w-16 text-primary mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                </svg>
+            </i>
+            <h3 class="text-xl font-medium mb-2">Arraste suas imagens aqui</h3>
+            <p class="text-gray-500 dark:text-gray-400 text-center mb-4">ou</p>
+            <input type="file" id="file-input" multiple accept="image/*" class="hidden">
+            <button id="browse-btn" class="bg-primary hover:bg-primary/90 text-white py-2 px-6 rounded-lg transition-colors text-base">
+                Selecionar Arquivos
+            </button>
+            <p class="mt-4 text-sm text-gray-500 dark:text-gray-400">Formatos aceitos: JPG, PNG, GIF, WEBP</p>
+        </div>
+        
+        <!-- Controles -->
+        <div class="flex flex-col sm:flex-row justify-between items-center mb-6 gap-4">
+            <div class="stats text-sm text-gray-600 dark:text-gray-400">
+                <span id="total-files">0</span> arquivo(s) selecionado(s)
+            </div>
+            <div class="flex gap-3">
+                <button id="convert-all-btn" class="hidden bg-primary hover:bg-primary/90 text-white py-2 px-6 rounded-lg transition-colors text-base">
+                    Converter Tudo
+                </button>
+                <button id="download-all-btn" class="hidden bg-green-600 hover:bg-green-700 text-white py-2 px-6 rounded-lg transition-colors text-base">
+                    Baixar Tudo
+                </button>
+                <button id="clear-btn" class="hidden bg-red-600 hover:bg-red-700 text-white py-2 px-6 rounded-lg transition-colors text-base">
+                    Limpar
+                </button>
+            </div>
+        </div>
+        
+        <!-- Área de visualização -->
+        <div id="preview-container" class="preview-container mb-8"></div>
+        
+        <!-- Canvas para processamento (invisível) -->
+        <canvas id="canvas" style="display: none;"></canvas>
+    </div>
+
+    <script>
+        const targetWidth = 314;
+        const targetHeight = 191;
+
+        // Seletores
+        const fileInput = document.getElementById('file-input');
+        const browseBtn = document.getElementById('browse-btn');
+        const previewContainer = document.getElementById('preview-container');
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+
+        // Arquivos selecionados
+        let files = [];
+
+        browseBtn.addEventListener('click', () => fileInput.click());
+
+        fileInput.addEventListener('change', (event) => {
+            const selectedFiles = Array.from(event.target.files);
+            selectedFiles.forEach(file => processFile(file));
+        });
+
+        function processFile(file) {
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                const img = new Image();
+                img.onload = () => {
+                    canvas.width = targetWidth;
+                    canvas.height = targetHeight;
+                    ctx.drawImage(img, 0, 0, targetWidth, targetHeight);
+
+                    canvas.toBlob((blob) => {
+                        const previewItem = document.createElement('div');
+                        previewItem.className = 'preview-item';
+                        previewItem.innerHTML = `
+                            <div>
+                                <img src="${URL.createObjectURL(blob)}" alt="${file.name}" />
+                            </div>
+                        `;
+                        previewContainer.appendChild(previewItem);
+                    }, 'image/jpeg', 0.95);
+                };
+                img.src = e.target.result;
+            };
+            reader.readAsDataURL(file);
+        }
+    </script>
+</body>
+</html>
