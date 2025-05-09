@@ -33,33 +33,6 @@
             border-color: #5D5CDE;
             background-color: rgba(93, 92, 222, 0.2);
         }
-        .preview-container {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
-            gap: 16px;
-        }
-        .preview-item {
-            position: relative;
-            border-radius: 8px;
-            overflow: hidden;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-            transition: transform 0.2s ease;
-        }
-        .preview-item:hover {
-            transform: translateY(-5px);
-        }
-        .dark .preview-item {
-            box-shadow: 0 2px 4px rgba(0,0,0,0.3);
-        }
-        .progress-bar {
-            height: 4px;
-            width: 0%;
-            background-color: #5D5CDE;
-            position: absolute;
-            bottom: 0;
-            left: 0;
-            transition: width 0.3s ease;
-        }
     </style>
 </head>
 <body class="bg-white dark:bg-[#181818] text-gray-800 dark:text-gray-200 min-h-screen">
@@ -85,24 +58,6 @@
             <p class="mt-4 text-sm text-gray-500 dark:text-gray-400">Formatos aceitos: JPG, PNG, GIF, WEBP</p>
         </div>
         
-        <!-- Controles -->
-        <div class="flex flex-col sm:flex-row justify-between items-center mb-6 gap-4">
-            <div class="stats text-sm text-gray-600 dark:text-gray-400">
-                <span id="total-files">0</span> arquivo(s) selecionado(s)
-            </div>
-            <div class="flex gap-3">
-                <button id="convert-all-btn" class="hidden bg-primary hover:bg-primary/90 text-white py-2 px-6 rounded-lg transition-colors text-base">
-                    Converter Tudo
-                </button>
-                <button id="download-all-btn" class="hidden bg-green-600 hover:bg-green-700 text-white py-2 px-6 rounded-lg transition-colors text-base">
-                    Baixar Tudo
-                </button>
-                <button id="clear-btn" class="hidden bg-red-600 hover:bg-red-700 text-white py-2 px-6 rounded-lg transition-colors text-base">
-                    Limpar
-                </button>
-            </div>
-        </div>
-        
         <!-- Área de visualização -->
         <div id="preview-container" class="preview-container mb-8"></div>
         
@@ -111,41 +66,93 @@
     </div>
 
     <script>
+        // Configurações de redimensionamento
         const targetWidth = 314;
         const targetHeight = 191;
 
-        // Seletores
+        // Seletores do DOM
+        const dragArea = document.querySelector('.drag-area');
         const fileInput = document.getElementById('file-input');
         const browseBtn = document.getElementById('browse-btn');
         const previewContainer = document.getElementById('preview-container');
         const canvas = document.getElementById('canvas');
         const ctx = canvas.getContext('2d');
 
-        // Arquivos selecionados
+        // Array para armazenar arquivos
         let files = [];
 
+        // Clique no botão de seleção
         browseBtn.addEventListener('click', () => fileInput.click());
 
+        // Processar arquivos selecionados via input
         fileInput.addEventListener('change', (event) => {
             const selectedFiles = Array.from(event.target.files);
-            selectedFiles.forEach(file => processFile(file));
+            handleFiles(selectedFiles);
         });
 
+        // Eventos de arrastar e soltar
+        ['dragenter', 'dragover'].forEach(eventName => {
+            dragArea.addEventListener(eventName, (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                dragArea.classList.add('active');
+            });
+        });
+
+        ['dragleave', 'drop'].forEach(eventName => {
+            dragArea.addEventListener(eventName, (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                dragArea.classList.remove('active');
+            });
+        });
+
+        // Processar arquivos arrastados
+        dragArea.addEventListener('drop', (e) => {
+            const droppedFiles = Array.from(e.dataTransfer.files);
+            handleFiles(droppedFiles);
+        });
+
+        // Processar os arquivos recebidos
+        function handleFiles(selectedFiles) {
+            const imageFiles = selectedFiles.filter(file => file.type.startsWith('image/'));
+
+            if (imageFiles.length === 0) return;
+
+            imageFiles.forEach(file => {
+                if (!files.some(f => f.name === file.name)) {
+                    files.push(file);
+                    processFile(file);
+                }
+            });
+        }
+
+        // Processar um único arquivo
         function processFile(file) {
             const reader = new FileReader();
             reader.onload = (e) => {
                 const img = new Image();
                 img.onload = () => {
+                    // Configurar o canvas
                     canvas.width = targetWidth;
                     canvas.height = targetHeight;
+
+                    // Redimensionar a imagem
                     ctx.drawImage(img, 0, 0, targetWidth, targetHeight);
 
+                    // Converter para blob
                     canvas.toBlob((blob) => {
+                        const url = URL.createObjectURL(blob);
+
+                        // Adicionar à visualização
                         const previewItem = document.createElement('div');
-                        previewItem.className = 'preview-item';
+                        previewItem.classList.add('preview-item');
                         previewItem.innerHTML = `
                             <div>
-                                <img src="${URL.createObjectURL(blob)}" alt="${file.name}" />
+                                <img src="${url}" alt="${file.name}" class="w-full h-auto">
+                            </div>
+                            <div class="text-center mt-2">
+                                <a href="${url}" download="${file.name}" class="text-primary hover:underline">Baixar</a>
                             </div>
                         `;
                         previewContainer.appendChild(previewItem);
